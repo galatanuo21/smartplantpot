@@ -1,0 +1,52 @@
+﻿@page "/"
+@inject NavigationManager NavManager
+@inject UserService UserService
+
+<div class="app-wrapper login-mode">
+    <div class="login-container fade-in">
+        <div class="login-card">
+            <h1 class="login-title">Willkommen</h1>
+            <p class="login-subtitle">Verbinde dich mit deinem Smart Pot</p>
+
+            <div class="input-group">
+                <label>Benutzername</label>
+                <input type="text" @bind="EingabeName" placeholder="Dein Name" class="login-input" />
+            </div>
+
+            <div class="input-group">
+                <label>Geräte-ID (vom Aufkleber)</label>
+                <input type="text" @bind="EingabeID" placeholder="z.B. 8492-A" class="login-input" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(LoginFehler))
+            {
+                <div class="login-error">@LoginFehler</div>
+            }
+
+            <button class="btn-login" @onclick="VersucheLogin">Verbinden</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    string EingabeName = "";
+    string EingabeID = "";
+    string LoginFehler = "";
+
+    void VersucheLogin()
+    {
+        if (string.IsNullOrWhiteSpace(EingabeName) || string.IsNullOrWhiteSpace(EingabeID))
+        {
+            LoginFehler = "Bitte Name und Geräte-ID eingeben.";
+            return;
+        }
+
+        // Daten im Service speichern
+        UserService.Name = EingabeName;
+        UserService.DeviceID = EingabeID;
+        UserService.IsLoggedIn = true;
+
+        // Weiterleitung zum Dashboard
+        NavManager.NavigateTo("/dashboard");
+    }
+}

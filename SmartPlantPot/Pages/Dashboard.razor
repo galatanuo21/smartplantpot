@@ -7,27 +7,27 @@
 
     @if (ZeigeEinstellungen)
     {
-        // --- EINSTELLUNGEN SEITE ---
+        // --- EINSTELLUNGEN ---
         <div class="settings-container fade-in">
             <h1 class="settings-header">Einstellungen</h1>
 
             <div class="setting-card">
                 <div class="setting-top">
-                    <span class="setting-label">Wassermenge pro Gießvorgang</span>
+                    <span class="setting-label">Wassermenge (ml)</span>
                     <span class="setting-value">@Einstellung_WasserMenge ml</span>
                 </div>
                 <input type="range" min="50" max="500" step="10"
-                       @bind="Einstellung_WasserMenge"
+                       @bind="Einstellung_WasserMenge" @bind:event="oninput"
                        class="custom-slider" />
             </div>
 
             <div class="setting-card">
                 <div class="setting-top">
-                    <span class="setting-label">Dauer der autom. Bewässerung</span>
-                    <span class="setting-value">@Einstellung_Dauer min</span>
+                    <span class="setting-label">Dauer Gießvorgang</span>
+                    <span class="setting-value" style="color:#32CD32; font-weight:bold;">@Einstellung_Dauer Sekunden</span>
                 </div>
                 <input type="range" min="1" max="60" step="1"
-                       @bind="Einstellung_Dauer"
+                       @bind="Einstellung_Dauer" @bind:event="oninput"
                        class="custom-slider" />
             </div>
 
@@ -37,32 +37,33 @@
                     <span class="setting-value">@Einstellung_Schwelle %</span>
                 </div>
                 <input type="range" min="10" max="90" step="5"
-                       @bind="Einstellung_Schwelle"
+                       @bind="Einstellung_Schwelle" @bind:event="oninput"
+                       @bind:after="PruefeAutomatikSofort"
                        class="custom-slider" />
             </div>
 
             <div class="setting-card">
                 <div class="setting-top">
-                    <span class="setting-label">Intervall der autom. Prüfung</span>
-                    <span class="setting-value">@Einstellung_Intervall Stunden</span>
+                    <span class="setting-label">Prüf-Intervall</span>
+                    <span class="setting-value">@Einstellung_Intervall Std.</span>
                 </div>
                 <input type="range" min="1" max="48" step="1"
-                       @bind="Einstellung_Intervall"
+                       @bind="Einstellung_Intervall" @bind:event="oninput"
                        @bind:after="UpdateAutoTimer"
                        class="custom-slider" />
             </div>
 
-            <button class="btn-save" @onclick="BackToDashboard">Speichern und zurück</button>
+            <button class="btn-save" @onclick="BackToDashboard">Speichern & Zurück</button>
         </div>
     }
     else if (ZeigeAnalyse)
     {
-        // --- ANALYSE SEITE ---
+        // --- ANALYSE ---
         <div class="settings-container fade-in">
-            <h1 class="settings-header">Analyse & Stand</h1>
+            <h1 class="settings-header">Analyse</h1>
 
             <div class="analyse-card">
-                <div class="card-title-small">Bodenfeuchtigkeit (Verlauf)</div>
+                <div class="card-title-small">Verlauf</div>
                 <div class="chart-container">
                     <svg viewBox="0 0 300 100" class="chart-svg">
                         <defs>
@@ -74,18 +75,9 @@
                         <line x1="0" y1="20" x2="300" y2="20" stroke="#eee" />
                         <line x1="0" y1="50" x2="300" y2="50" stroke="#eee" />
                         <line x1="0" y1="80" x2="300" y2="80" stroke="#eee" />
-
-                        <path d="M0,80 C20,70 40,65 50,50 C60,30 80,10 100,8 C140,5 160,10 180,20 C200,40 220,60 240,60 L260,60 L300,80 V100 H0 Z"
-                              fill="url(#gradientFill)" />
-                        <path d="M0,80 C20,70 40,65 50,50 C60,30 80,10 100,8 C140,5 160,10 180,20 C200,40 220,60 240,60 L260,60 L300,80"
-                              fill="none" stroke="#00a63f" stroke-width="3" stroke-linecap="round" />
+                        <path d="M0,80 C20,70 40,65 50,50 C60,30 80,10 100,8 C140,5 160,10 180,20 C200,40 220,60 240,60 L260,60 L300,80 V100 H0 Z" fill="url(#gradientFill)" />
+                        <path d="M0,80 C20,70 40,65 50,50 C60,30 80,10 100,8 C140,5 160,10 180,20 C200,40 220,60 240,60 L260,60 L300,80" fill="none" stroke="#00a63f" stroke-width="3" stroke-linecap="round" />
                     </svg>
-                    <div class="chart-labels">
-                        <span>80</span>
-                        <span>50</span>
-                        <span>20</span>
-                    </div>
-                    <div class="chart-footer">Letzte 24 Stunden</div>
                 </div>
             </div>
 
@@ -97,70 +89,39 @@
                 </div>
                 <div class="tank-info">
                     <div class="tank-percent">@TankFuellstand %</div>
-                    <div class="tank-label">Wasser im Behälter</div>
+                    <div class="tank-label">Wasserstand</div>
                 </div>
             </div>
-
-            <div class="analyse-card">
-                <div class="card-title-small center">Meldungen</div>
-                <div class="messages-placeholder">
-                    @if (TankFuellstand <= 0)
-                    {
-                        <div class="message-box warning">
-                            <span class="msg-icon">⚠️</span>
-                            <div class="msg-content">
-                                <strong>ACHTUNG: Wassertank leer!</strong>
-                                <span>Bitte sofort Wasser nachfüllen.</span>
-                            </div>
-                        </div>
-                    }
-                    else if (Bodenfeuchtigkeit < Einstellung_Schwelle)
-                    {
-                        <div class="message-box info">
-                            <span class="msg-icon">💧</span>
-                            <div class="msg-content">
-                                <strong>Pflanze braucht Wasser</strong>
-                                <span>Feuchtigkeit unter @Einstellung_Schwelle%.</span>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="messages-placeholder">
-                            <span style="color: #aaa; font-style: italic;">Keine neuen Meldungen</span>
-                        </div>
-                    }
-                </div>
-            </div>
-
             <button class="btn-save btn-back-white" @onclick="BackToDashboard">Zurück</button>
         </div>
     }
     else
     {
+        // --- DASHBOARD ---
         <div class="container fade-in">
-            <div class="header">Smart Plant Pot</div>
-            <div class="subtitle">Überwache deine Pflanze in Echtzeit</div>
+            <div class="header">Smart Pot</div>
 
             <div class="card">
                 <div class="card-title">Pflanze</div>
                 <div class="sensor-grid">
                     <div class="sensor-block">
                         <div class="label">Bodenfeuchtigkeit</div>
-                        <div class="value moisture">@Bodenfeuchtigkeit %</div>
+                        <div class="value moisture" style="@(Bodenfeuchtigkeit <= Einstellung_Schwelle ? "color:red;" : "")">
+                            @Bodenfeuchtigkeit %
+                        </div>
                     </div>
 
                     <div class="sensor-block" style="@(PumpeLaeuft ? "background:#e6ffe6; border: 2px solid #32CD32;" : "")">
-                        <div class="label">@(PumpeLaeuft ? "Status" : "Temperatur")</div>
-                        <div class="value temp" style="@(PumpeLaeuft ? "color:#32CD32" : "")">
-                            @(PumpeLaeuft ? "Gießt..." : "22,2°C")
+                        <div class="label">Status</div>
+                        <div class="value temp" style="@(PumpeLaeuft ? "color:#32CD32;" : "")">
+                            @(PumpeLaeuft ? $"Gießt... {RestdauerAnzeige}s" : "Bereit")
                         </div>
                     </div>
                 </div>
 
                 <div class="button-row">
                     <button class="btn-fill" @onclick="ManuellGiessen" disabled="@PumpeLaeuft">
-                        Jetzt gießen
+                        Manuell Gießen
                     </button>
 
                     <button class="btn-outline" @onclick="ToggleAutomatisch"
@@ -171,14 +132,16 @@
 
                 @if (AutomatischAktiv && !PumpeLaeuft)
                 {
-                    <div style="text-align:center; font-size:11px; color:#888; margin-top:-10px; margin-bottom:10px;">
-                        Prüfung alle @Einstellung_Intervall Std. (Schwelle: @Einstellung_Schwelle%)
+                    <div style="text-align:center; font-size:11px; color:#888; margin-top:5px;">
+                        Eingestellt: Gießen wenn unter <b>@Einstellung_Schwelle%</b> <br />
+                        Aktuell: <b>@Bodenfeuchtigkeit%</b>
+                        @(Bodenfeuchtigkeit <= Einstellung_Schwelle ? "(Wartet auf Timer...)" : "(Feuchtigkeit OK)")
                     </div>
                 }
 
                 <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;" />
 
-                <div class="history-title">Letzte Gießzeiten</div>
+                <div class="history-title">Letzte Aktionen</div>
 
                 @if (GießHistorie.Count == 0)
                 {
@@ -190,11 +153,7 @@
                         <tbody>
                             @foreach (var eintrag in GießHistorie.Take(3))
                             {
-                                <tr>
-                                    <td>@eintrag.Art</td>
-                                    <td>@eintrag.Datum</td>
-                                    <td>@eintrag.Uhrzeit</td>
-                                </tr>
+                                <tr><td>@eintrag.Art</td><td>@eintrag.Uhrzeit</td></tr>
                             }
                         </tbody>
                     </table>
@@ -210,129 +169,124 @@
 </div>
 
 @code {
-    int Bodenfeuchtigkeit = 25;
+    // --- STATE ---
+    int Bodenfeuchtigkeit = 40;
     bool AutomatischAktiv = false;
-    bool PumpeLaeuft = false; 
+    bool PumpeLaeuft = false;
+    int RestdauerAnzeige = 0;
 
+    // --- NAVIGATION ---
     bool ZeigeEinstellungen = false;
     bool ZeigeAnalyse = false;
 
-    int Einstellung_WasserMenge = 150; 
-    int Einstellung_Dauer = 5;        
-    int Einstellung_Schwelle = 30;    
-    int Einstellung_Intervall = 12;   
+    // --- EINSTELLUNGEN ---
+    int Einstellung_WasserMenge = 150;
+    int Einstellung_Dauer = 5;
+    int Einstellung_Schwelle = 30;
+    int Einstellung_Intervall = 12;
 
-    // --- Analyse Variablen ---
+    // --- SYSTEM ---
     int TankFuellstand = 80;
-
-    // --- Timer und Historie ---
     Timer? CheckTimer;
     List<GießEintrag> GießHistorie = new();
 
-    // === HAUPTLOGIK ===
+    // === LOGIK ===
 
-    // 1. Manuelles Gießen (Button Click)
+    // 1. Manuelles Gießen
     void ManuellGiessen()
     {
-        // Startet den Gießvorgang sofort asynchron (feuert und vergisst)
         _ = StartGiessVorgang("Manuell");
     }
 
-    // 2. Automatik An/Aus (Button Click)
+    // 2. Automatik umschalten
     void ToggleAutomatisch()
     {
         AutomatischAktiv = !AutomatischAktiv;
         UpdateAutoTimer();
+        if (AutomatischAktiv) PruefeAutomatikSofort(); // Sofort prüfen beim Einschalten!
     }
 
-    // 3. Timer Update (Wird aufgerufen bei Toggle oder Slider-Änderung)
+    // 3. Timer Logic
     void UpdateAutoTimer()
     {
-        CheckTimer?.Dispose(); // Alten Timer löschen
-
+        CheckTimer?.Dispose();
         if (AutomatischAktiv)
         {
-            // HIER SIMULIERT: Zum Testen nehmen wir Sekunden statt Stunden!
-            // Echte App: Einstellung_Intervall * 60 * 60 * 1000
-            int timerIntervallMs = Einstellung_Intervall * 2000;
-
-            CheckTimer = new Timer(AutomatischePruefung, null, 0, timerIntervallMs);
+            // Testmodus: 1 Std = 3 Sekunden Wartezeit
+            int timerIntervallMs = 3000;
+            CheckTimer = new Timer(TimerCallback, null, 0, timerIntervallMs);
         }
     }
 
-    // 4. Die Prüfung (läuft im Hintergrund)
-    async void AutomatischePruefung(object? state)
+    async void TimerCallback(object? state)
     {
-        // Läuft Pumpe schon? Tank leer?
-        if (PumpeLaeuft || TankFuellstand <= 0) return;
-
-        // Läuft im Hintergrund-Thread, daher InvokeAsync für UI Zugriff
-        await InvokeAsync(async () =>
-        {
-            // LOGIK: Ist Feuchtigkeit unter der Schwelle?
-            if (Bodenfeuchtigkeit <= Einstellung_Schwelle)
-            {
-                await StartGiessVorgang("Auto");
-            }
-            else
-            {
-                // Simulation: Erde trocknet aus, wenn nicht gegossen wird
-                Bodenfeuchtigkeit = Math.Max(0, Bodenfeuchtigkeit - 2);
-                StateHasChanged();
-            }
-        });
+        await InvokeAsync(() => PruefeAutomatikSofort());
     }
 
-    // 5. Der Gießvorgang (Das Herzstück)
+    // 4. DIE ZENTRALE PRÜFUNG (Wird von Timer UND Slider aufgerufen)
+    async void PruefeAutomatikSofort()
+    {
+        // Abbruchbedingungen
+        if (!AutomatischAktiv || PumpeLaeuft || TankFuellstand <= 0) return;
+
+        // Trocknet langsam von alleine (Simulation)
+        if (Bodenfeuchtigkeit > 0) Bodenfeuchtigkeit -= 1;
+
+        // PRÜFUNG: Ist der Wert UNTER der eingestellten Schwelle?
+        if (Bodenfeuchtigkeit <= Einstellung_Schwelle)
+        {
+            await StartGiessVorgang("Auto-Start");
+        }
+
+        StateHasChanged();
+    }
+
+    // 5. GIEßVORGANG (Zählt Sekunden runter)
     async Task StartGiessVorgang(string modus)
     {
         if (PumpeLaeuft || TankFuellstand <= 0) return;
 
-        // A) START
+        // Start
+        int dauerTest = Einstellung_Dauer;
         PumpeLaeuft = true;
-        StateHasChanged(); // UI zeigt jetzt "Gießt..." an
+        RestdauerAnzeige = dauerTest;
+        StateHasChanged();
 
-        // B) DIE DAUER (Simuliert Pumpenlaufzeit)
-        // Wir nehmen die Einstellung "Dauer" (in Minuten) und warten (hier Sekunden für Demo)
-        int warteZeitMs = Einstellung_Dauer * 1000;
-        await Task.Delay(warteZeitMs);
+        // Countdown (Sekunden)
+        while (RestdauerAnzeige > 0)
+        {
+            await Task.Delay(1000);
+            RestdauerAnzeige--;
+            StateHasChanged();
+        }
 
-        // C) BERECHNUNG & ENDE
-        // Wie viel Wasser wurde verbraucht?
-        int feuchtigkeitsPlus = Einstellung_WasserMenge / 5; // Je mehr Menge, desto feuchter
-        int tankMinus = Einstellung_WasserMenge / 20;
+        // Ende & Werte anpassen
+        Bodenfeuchtigkeit = Math.Min(100, Bodenfeuchtigkeit + 30); // Wird wieder feucht
+        TankFuellstand = Math.Max(0, TankFuellstand - 5);
+        PumpeLaeuft = false;
 
-        Bodenfeuchtigkeit = Math.Min(100, Bodenfeuchtigkeit + feuchtigkeitsPlus);
-        TankFuellstand = Math.Max(0, TankFuellstand - tankMinus);
-
-        PumpeLaeuft = false; // UI zeigt wieder Temp an
-
-        // Historie schreiben
         GießHistorie.Insert(0, new GießEintrag
         {
-            Art = modus + " (" + Einstellung_WasserMenge + "ml)",
-            Datum = DateTime.Now.ToString("dd.MM."),
-            Uhrzeit = DateTime.Now.ToString("HH:mm")
+            Art = $"{modus} ({dauerTest}s)",
+            Uhrzeit = DateTime.Now.ToString("HH:mm:ss")
         });
 
         StateHasChanged();
     }
 
-    // --- Navigation Funktionen ---
     void GoToSettings() { ZeigeEinstellungen = true; ZeigeAnalyse = false; }
     void GoToAnalyse() { ZeigeAnalyse = true; ZeigeEinstellungen = false; }
     void BackToDashboard()
     {
         ZeigeEinstellungen = false;
         ZeigeAnalyse = false;
-        // Wenn man aus den Settings kommt, Timer updaten (falls Werte geändert wurden)
-        UpdateAutoTimer();
+        // Wenn man aus den Einstellungen kommt, sofort prüfen, ob die neuen Werte Gießen auslösen
+        if (AutomatischAktiv) PruefeAutomatikSofort();
     }
 
     class GießEintrag
     {
-        public string Art { get; set; } = ""; // Manuell oder Auto
-        public string Datum { get; set; } = "";
+        public string Art { get; set; } = "";
         public string Uhrzeit { get; set; } = "";
     }
 }

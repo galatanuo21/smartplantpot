@@ -6,6 +6,7 @@
 @using SmartPlantPot.Models
 @using System.Text.Json @* WICHTIG: Für die JSON Optionen *@
 @using static System.Net.WebRequestMethods
+@using System.Net.Http.Json
 
 <div class="app-wrapper @(ZeigeEinstellungen || ZeigeAnalyse ? "settings-mode" : "")">
 
@@ -225,12 +226,16 @@
             {
                 MesswerteListe = daten;
 
-                // Wir nehmen den letzten Wert der Liste
-                var neuesterWert = MesswerteListe.Last();
+                // SIMPEL: Wir sortieren nach ID (1, 2, 3...)
+                // Und nehmen einfach den LETZTEN (.Last)
+                var letzterEintrag = MesswerteListe.OrderBy(x => x.Id).LastOrDefault();
 
-                Bodenfeuchtigkeit = (int)Math.Round(neuesterWert.Humidity);
+                if (letzterEintrag != null)
+                {
+                    Bodenfeuchtigkeit = (int)Math.Round(letzterEintrag.Humidity);
+                    Console.WriteLine($"Neuester Wert (ID: {letzterEintrag.Id}): {Bodenfeuchtigkeit}%");
+                }
 
-                Console.WriteLine($"Konvertierung erfolgreich. Wert: {Bodenfeuchtigkeit}%");
                 StateHasChanged();
             }
             else
@@ -298,15 +303,25 @@
         StateHasChanged();
     }
 
+    // Die Klasse, die wir an die API schicken (muss exakt so heißen wie im Controller)
+    public class MessungEintragDto
+    {
+        public double Humidity { get; set; }
+        public string Modus { get; set; }
+    }
+
     async Task StartGiessVorgang(string modus)
     {
         if (PumpeLaeuft || TankFuellstand <= 0) return;
 
+        // Hier nutzen wir jetzt die eingestellte Dauer
         int dauerTest = Einstellung_Dauer;
+
         PumpeLaeuft = true;
         RestdauerAnzeige = dauerTest;
         StateHasChanged();
 
+        // Countdown abwarten
         while (RestdauerAnzeige > 0)
         {
             await Task.Delay(1000);
@@ -314,21 +329,59 @@
             StateHasChanged();
         }
 
-        // Werte anpassen (Simulation, da wir keine echte Pumpe ansteuern)
-        // Hier könnte man später einen API Call machen: await Http.PostAsync("api/water", ...)
-        Bodenfeuchtigkeit = Math.Min(100, Bodenfeuchtigkeit + 30);
-        TankFuellstand = Math.Max(0, TankFuellstand - 5);
-        PumpeLaeuft = false;
+        // --- HIER IST DIE NEUE BERECHNUNG ---
 
+        // 1. Feuchtigkeitsanstieg berechnen basierend auf Wassermenge
+        // Formel: Wir teilen die ml durch 5.
+        // Beispiel: 150ml / 5 = +30% Feuchtigkeit.
+        //           500ml / 5 = +100% Feuchtigkeit.
+        double anstieg = Einstellung_WasserMenge / 5.0;
+
+        double neueFeuchtigkeit = Math.Min(100, Bodenfeuchtigkeit + anstieg);
+
+        // 2. Tankverbrauch berechnen basierend auf Wassermenge
+        // Beispiel: Wenn 150ml etwa 5% Tankinhalt sind (Faktor 30)
+        double tankVerbrauch = Einstellung_WasserMenge / 30.0;
+
+        // Wir ziehen den Verbrauch ab, dürfen aber nicht unter 0 fallen
+        TankFuellstand = (int)Math.Max(0, TankFuellstand - tankVerbrauch);
+
+        // ------------------------------------
+
+        PumpeLaeuft = false;
+        Bodenfeuchtigkeit = (int)neueFeuchtigkeit;
+
+        // 4. --- DATEN AN API SCHICKEN ---
+        try
+        {
+            var paket = new MessungEintragDto
+            {
+                Humidity = neueFeuchtigkeit,
+                Modus = modus
+            };
+
+            var antwort = await Http.PostAsJsonAsync("api/messwerte", paket);
+
+            if (!antwort.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"API Fehler: {antwort.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Verbindungsfehler: {ex.Message}");
+        }
+
+        // 5. Historie fortschreiben (jetzt mit Menge in der Anzeige!)
         GießHistorie.Insert(0, new GießEintrag
         {
-            Art = $"{modus} ({dauerTest}s)",
+            // Zeigt jetzt z.B. "Manuell (150ml)" an
+            Art = $"{modus} ({Einstellung_WasserMenge}ml)",
             Uhrzeit = DateTime.Now.ToString("HH:mm:ss")
         });
 
         StateHasChanged();
     }
-
     void GoToSettings() { ZeigeEinstellungen = true; ZeigeAnalyse = false; }
     void GoToAnalyse() { ZeigeAnalyse = true; ZeigeEinstellungen = false; }
     void BackToDashboard()
@@ -343,4 +396,5 @@
         public string Art { get; set; } = "";
         public string Uhrzeit { get; set; } = "";
     }
+  
 }

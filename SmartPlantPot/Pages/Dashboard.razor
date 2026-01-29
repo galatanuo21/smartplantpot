@@ -1,7 +1,11 @@
 ﻿@page "/dashboard"
 @inject NavigationManager NavManager
 @inject UserService UserService
+@inject HttpClient Http
 @using System.Threading
+@using SmartPlantPot.Models
+
+@using static System.Net.WebRequestMethods
 
 <div class="app-wrapper @(ZeigeEinstellungen || ZeigeAnalyse ? "settings-mode" : "")">
 
@@ -97,7 +101,7 @@
     }
     else
     {
-        // --- DASHBOARD ---
+        <!-- DASHBOARD -->
         <div class="container fade-in">
             <div class="header">Smart Pot</div>
 
@@ -170,10 +174,11 @@
 
 @code {
     // --- STATE ---
-    int Bodenfeuchtigkeit = 40;
+    int Bodenfeuchtigkeit = 0;
     bool AutomatischAktiv = false;
     bool PumpeLaeuft = false;
     int RestdauerAnzeige = 0;
+    int TankFuellstand = 80;
 
     // --- NAVIGATION ---
     bool ZeigeEinstellungen = false;
@@ -186,34 +191,71 @@
     int Einstellung_Intervall = 12;
 
     // --- SYSTEM ---
-    int TankFuellstand = 80;
     Timer? CheckTimer;
+    Timer? UpdateTimer;
     List<GießEintrag> GießHistorie = new();
+
+    // --- API-DATEN ---
+    List<Messwerte> MesswerteListe = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LadeMesswerte();
+        StartAutoUpdate();
+    }
+
+    async Task LadeMesswerte()
+    {
+        try
+        {
+            var daten = await Http.GetFromJsonAsync<List<Messwerte>>("api/humidity"); // Dein API-Endpunkt
+            if (daten != null && daten.Any())
+            {
+                MesswerteListe = daten;
+                // Aktuellster Wert = letzte Bodenfeuchtigkeit
+                Bodenfeuchtigkeit = (int)Math.Round(MesswerteListe.Last().Humidity);
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fehler beim Laden der API: {ex.Message}");
+        }
+    }
+
+    void StartAutoUpdate()
+    {
+        UpdateTimer?.Dispose();
+        UpdateTimer = new Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LadeMesswerte();
+                await PruefeAutomatikSofort();
+            });
+        }, null, 0, 5000); // alle 5 Sekunden aktualisieren
+    }
 
     // === LOGIK ===
 
-    // 1. Manuelles Gießen
     void ManuellGiessen()
     {
         _ = StartGiessVorgang("Manuell");
     }
 
-    // 2. Automatik umschalten
-    void ToggleAutomatisch()
+    async Task ToggleAutomatisch()
     {
         AutomatischAktiv = !AutomatischAktiv;
         UpdateAutoTimer();
-        if (AutomatischAktiv) PruefeAutomatikSofort(); // Sofort prüfen beim Einschalten!
+        if (AutomatischAktiv) await PruefeAutomatikSofort();
     }
 
-    // 3. Timer Logic
     void UpdateAutoTimer()
     {
         CheckTimer?.Dispose();
         if (AutomatischAktiv)
         {
-            // Testmodus: 1 Std = 3 Sekunden Wartezeit
-            int timerIntervallMs = 3000;
+            int timerIntervallMs = 5000;
             CheckTimer = new Timer(TimerCallback, null, 0, timerIntervallMs);
         }
     }
@@ -223,16 +265,10 @@
         await InvokeAsync(() => PruefeAutomatikSofort());
     }
 
-    // 4. DIE ZENTRALE PRÜFUNG (Wird von Timer UND Slider aufgerufen)
-    async void PruefeAutomatikSofort()
+    async Task PruefeAutomatikSofort()
     {
-        // Abbruchbedingungen
         if (!AutomatischAktiv || PumpeLaeuft || TankFuellstand <= 0) return;
 
-        // Trocknet langsam von alleine (Simulation)
-        if (Bodenfeuchtigkeit > 0) Bodenfeuchtigkeit -= 1;
-
-        // PRÜFUNG: Ist der Wert UNTER der eingestellten Schwelle?
         if (Bodenfeuchtigkeit <= Einstellung_Schwelle)
         {
             await StartGiessVorgang("Auto-Start");
@@ -241,18 +277,15 @@
         StateHasChanged();
     }
 
-    // 5. GIEßVORGANG (Zählt Sekunden runter)
     async Task StartGiessVorgang(string modus)
     {
         if (PumpeLaeuft || TankFuellstand <= 0) return;
 
-        // Start
         int dauerTest = Einstellung_Dauer;
         PumpeLaeuft = true;
         RestdauerAnzeige = dauerTest;
         StateHasChanged();
 
-        // Countdown (Sekunden)
         while (RestdauerAnzeige > 0)
         {
             await Task.Delay(1000);
@@ -260,8 +293,8 @@
             StateHasChanged();
         }
 
-        // Ende & Werte anpassen
-        Bodenfeuchtigkeit = Math.Min(100, Bodenfeuchtigkeit + 30); // Wird wieder feucht
+        // Werte anpassen (simuliert)
+        Bodenfeuchtigkeit = Math.Min(100, Bodenfeuchtigkeit + 30);
         TankFuellstand = Math.Max(0, TankFuellstand - 5);
         PumpeLaeuft = false;
 
@@ -280,10 +313,9 @@
     {
         ZeigeEinstellungen = false;
         ZeigeAnalyse = false;
-        // Wenn man aus den Einstellungen kommt, sofort prüfen, ob die neuen Werte Gießen auslösen
-        if (AutomatischAktiv) PruefeAutomatikSofort();
+        if (AutomatischAktiv) _ = PruefeAutomatikSofort();
     }
-
+    
     class GießEintrag
     {
         public string Art { get; set; } = "";

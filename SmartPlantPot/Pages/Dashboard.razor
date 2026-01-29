@@ -4,8 +4,7 @@
 @inject HttpClient Http
 @using System.Threading
 @using SmartPlantPot.Models
-
-
+@using System.Text.Json @* WICHTIG: Für die JSON Optionen *@
 @using static System.Net.WebRequestMethods
 
 <div class="app-wrapper @(ZeigeEinstellungen || ZeigeAnalyse ? "settings-mode" : "")">
@@ -102,7 +101,6 @@
     }
     else
     {
-        <!-- DASHBOARD -->
         <div class="container fade-in">
             <div class="header">Smart Pot</div>
 
@@ -209,18 +207,40 @@
     {
         try
         {
-            var daten = await Http.GetFromJsonAsync<List<Messwerte>>("api/humidity"); // Dein API-Endpunkt
+            // 1. Wir holen die Daten erst als reinen Text (String), um zu sehen, was ankommt
+            var jsonString = await Http.GetStringAsync("api/humidity");
+
+            // 2. WICHTIG: Schauen Sie jetzt in die Browser-Konsole (F12)!
+            Console.WriteLine("ROHES JSON VOM SERVER: " + jsonString);
+
+            // 3. Jetzt wandeln wir es manuell um
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
+            var daten = JsonSerializer.Deserialize<List<Messwerte>>(jsonString, options);
+
             if (daten != null && daten.Any())
             {
                 MesswerteListe = daten;
-                // Aktuellster Wert = letzte Bodenfeuchtigkeit
-                Bodenfeuchtigkeit = (int)Math.Round(MesswerteListe.Last().Humidity);
+
+                // Wir nehmen den letzten Wert der Liste
+                var neuesterWert = MesswerteListe.Last();
+
+                Bodenfeuchtigkeit = (int)Math.Round(neuesterWert.Humidity);
+
+                Console.WriteLine($"Konvertierung erfolgreich. Wert: {Bodenfeuchtigkeit}%");
                 StateHasChanged();
+            }
+            else
+            {
+                Console.WriteLine("Liste war nach Konvertierung leer.");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Fehler beim Laden der API: {ex.Message}");
+            Console.WriteLine($"CRASH BEIM LADEN: {ex.Message}");
         }
     }
 
@@ -294,7 +314,8 @@
             StateHasChanged();
         }
 
-        // Werte anpassen (simuliert)
+        // Werte anpassen (Simulation, da wir keine echte Pumpe ansteuern)
+        // Hier könnte man später einen API Call machen: await Http.PostAsync("api/water", ...)
         Bodenfeuchtigkeit = Math.Min(100, Bodenfeuchtigkeit + 30);
         TankFuellstand = Math.Max(0, TankFuellstand - 5);
         PumpeLaeuft = false;
@@ -316,7 +337,7 @@
         ZeigeAnalyse = false;
         if (AutomatischAktiv) _ = PruefeAutomatikSofort();
     }
-    
+
     class GießEintrag
     {
         public string Art { get; set; } = "";
